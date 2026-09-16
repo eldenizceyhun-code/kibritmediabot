@@ -2,7 +2,7 @@ import os
 import re
 import feedparser
 import requests
-from deep_translator import GoogleTranslator
+from deep_translator import MyMemoryTranslator
 
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@kibritmedia")
@@ -24,8 +24,8 @@ def clean_message(text):
     text = re.sub(r"t\.me/\S+", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\b[a-zA-Z0-9.-]+\.(com|ru|org|net|az|io|me|cc|info|biz)\b\S*", "", text, flags=re.IGNORECASE)
     
-    # Remove unwanted symbols and channel signatures
-    text = re.sub(r"[👉👇📢🔥💥⚡️]", "", text)
+    # Remove unwanted emojis, checkmarks, symbols, and channel signatures
+    text = re.sub(r"[👉👇📢🔥💥⚡️✅✔️📌❗]", "", text)
     text = re.sub(r"@(?:topor|топор|shedevrplus|şedevrplus|\w+)", "", text, flags=re.IGNORECASE)
     text = re.sub(r"(?:topor|топор|shedevrplus|şedevrplus).*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
     text = re.sub(r"Подписаться.*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
@@ -41,12 +41,12 @@ def translate_text(text):
     if not text:
         return text
     try:
-        print("Translating paragraph by paragraph via Google Translate...")
+        print("Translating paragraph by paragraph via MyMemoryTranslator...")
         paragraphs = text.split("\n")
         translated_paragraphs = []
         for p in paragraphs:
             if p.strip():
-                translated = GoogleTranslator(source='auto', target='az').translate(p)
+                translated = MyMemoryTranslator(source='ru', target='az').translate(p)
                 translated_paragraphs.append(translated if translated else p)
             else:
                 translated_paragraphs.append("")
@@ -106,9 +106,7 @@ if __name__ == "__main__":
 
                         if cleaned:
                             translated_text = translate_text(cleaned)
-                            final_text = f"❗ {translated_text}"
-                            
-                            res = send_to_channel(final_text)
+                            res = send_to_channel(translated_text)
                             if res and res.get("ok"):
                                 print(f"SUCCESS: Posted new message from {rss_url}!")
                                 save_sent_id(post_id)
