@@ -71,14 +71,20 @@ def get_post_from_rss():
         feed = feedparser.parse(response.text)
         print(f"Total entries found in feed: {len(feed.entries)}")
         
-        if feed.entries:
-            entry = feed.entries[0]
+        if not feed.entries:
+            print("Feed entries list is empty!")
+            return None
+
+        # Ən son 3 xəbəri yoxlayaq və ilk mətni olanı götirək
+        for i, entry in enumerate(feed.entries[:3]):
             raw_text = entry.get("summary", "") or entry.get("title", "")
             raw_text = re.sub(r"<.*?>", "", raw_text)
-            print(f"Raw text extracted: {raw_text[:100]}...")
-            text = clean_message(raw_text)
-            print(f"Cleaned text: {text[:100]}...")
-            return text
+            if raw_text.strip():
+                print(f"Selected entry [{i}] raw text: {raw_text[:100]}...")
+                text = clean_message(raw_text)
+                print(f"Cleaned text: {text[:100]}...")
+                return text
+                
         return None
     except Exception as e:
         print(f"RSS fetch error: {e}")
