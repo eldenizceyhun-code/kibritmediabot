@@ -2,7 +2,6 @@ import os
 import re
 import feedparser
 import requests
-from deep_translator import MyMemoryTranslator
 
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@kibritmedia")
@@ -34,24 +33,6 @@ def clean_message(text):
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text
 
-def translate_text(text):
-    if not text:
-        return text
-    try:
-        print("Translating paragraph by paragraph via MyMemoryTranslator...")
-        paragraphs = text.split("\n")
-        translated_paragraphs = []
-        for p in paragraphs:
-            if p.strip():
-                translated = MyMemoryTranslator(source='ru', target='az').translate(p)
-                translated_paragraphs.append(translated if translated else p)
-            else:
-                translated_paragraphs.append("")
-        return "\n".join(translated_paragraphs)
-    except Exception as e:
-        print(f"Translation error: {e}")
-        return text
-
 def get_last_sent_id():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, "r", encoding="utf-8") as f:
@@ -73,7 +54,7 @@ def send_to_channel(text):
     return response.json()
 
 if __name__ == "__main__":
-    print("Checking Shedevrplus RSS feed...")
+    print("Checking Shedevrplus RSS feed (without translation)...")
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     response = requests.get(RSS_URL, headers=headers, timeout=15)
     
@@ -98,8 +79,7 @@ if __name__ == "__main__":
                 cleaned = clean_message(raw_text)
 
                 if cleaned:
-                    translated_text = translate_text(cleaned)
-                    res = send_to_channel(translated_text)
+                    res = send_to_channel(cleaned)
                     if res and res.get("ok"):
                         print("SUCCESS: Posted to channel!")
                         save_last_sent_id(post_id)
