@@ -1,7 +1,6 @@
 import os
 import re
 import feedparser
-import google.generativeai as genai
 import requests
 
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -10,27 +9,6 @@ CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@kibritmedia")
 print(f"Target Channel: {CHANNEL_USERNAME}")
 if not TOKEN:
     print("ERROR: TELEGRAM_BOT_TOKEN is missing!")
-
-# Gemini API configuration
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY not found! Please check GitHub Secrets.")
-
-genai.configure(api_key=GEMINI_API_KEY)
-
-system_instruction = (
-    "You are a professional Azerbaijani news editor and translator. "
-    "Translate and adapt the provided text ABSOLUTELY AND ONLY into fluent, natural, grammatically flawless Azerbaijani literary language. "
-    "NEVER reply in Russian or Turkish! Use only pure Azerbaijani literary language. "
-    "Completely clean out all links, channel names, citations, and promotional sentences from the text. "
-    "Keep only the core essence of the news and write a concise, meaningful, and readable summary of maximum 5-6 sentences without over-expanding. "
-    "Do not write any extra introductions, headings, quotes, or output remarks; return only the cleanly translated and summarized news text."
-)
-
-generation_model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    system_instruction=system_instruction
-)
 
 RSS_URL = "https://tg.i-c-a.su/rss/shedevrplus"
 
@@ -44,18 +22,6 @@ def clean_message(text):
     text = re.sub(r"\.{2,}", ".", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
-
-def translate_and_polish_with_gemini(text):
-    try:
-        print("Sending request to Gemini API...")
-        prompt = f"Translate the following news into pure Azerbaijani language and write a short, concise summary with a maximum of 5-6 sentences:\n\n{text}"
-        response = generation_model.generate_content(prompt)
-        result = response.text.strip()
-        print("Gemini response received successfully.")
-        return result
-    except Exception as e:
-        print("GEMINI ERROR:", type(e).__name__, str(e))
-        return None
 
 def get_post_from_rss():
     try:
@@ -75,7 +41,6 @@ def get_post_from_rss():
             print("Feed entries list is empty!")
             return None
 
-        # Ən son 3 xəbəri yoxlayaq və ilk mətni olanı götirək
         for i, entry in enumerate(feed.entries[:3]):
             raw_text = entry.get("summary", "") or entry.get("title", "")
             raw_text = re.sub(r"<.*?>", "", raw_text)
@@ -104,19 +69,15 @@ def send_to_channel(text):
     return response.json()
 
 if __name__ == "__main__":
-    print("Script started for shedevrplus...")
+    print("Script started (No Gemini mode)...")
     post_text = get_post_from_rss()
     if post_text:
-        polished_text = translate_and_polish_with_gemini(post_text)
-        if polished_text:
-            final_text = f"❗ {polished_text}"
-            res = send_to_channel(final_text)
-            if res and res.get("ok"):
-                print("SUCCESS: Message posted to channel!")
-            else:
-                print("FAILED to post to Telegram.")
+        final_text = f"❗ {post_text}"
+        res = send_to_channel(final_text)
+        if res and res.get("ok"):
+            print("SUCCESS: Message posted to channel!")
         else:
-            print("Gemini translation returned empty.")
+            print("FAILED to post to Telegram.")
     else:
         print("No posts fetched from RSS.")
     print("Script execution completed.")
