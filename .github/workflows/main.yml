@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: '*/5 * * * *'
 
+permissions:
+  contents: write
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -26,6 +29,12 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHANNEL_USERNAME: ${{ secrets.CHANNEL_USERNAME }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python bot.py
+
+      - name: Commit and push if state changed
+        run: |
+          git config --global user.name "Kibrit Bot"
+          git config --global user.email "bot@users.noreply.github.com"
+          git add last_id.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last sent post ID [skip ci]" && git push)
