@@ -73,40 +73,47 @@ if __name__ == "__main__":
         state_file = source["state_file"]
         
         print(f"\nChecking {source_id} RSS feed...")
-        response = requests.get(rss_url, headers=headers, timeout=15)
-        
-        if response.status_code == 200:
-            feed = feedparser.parse(response.text)
-            if feed.entries:
-                entry = feed.entries[0]
-                post_id = entry.get("id") or entry.get("link") or entry.get("title")
-                last_sent = get_last_sent_id(state_file)
+        try:
+            # Timeout artırıldı və xəta tutma (try-except) əlavə olundu
+            response = requests.get(rss_url, headers=headers, timeout=25)
+            
+            if response.status_code == 200:
+                feed = feedparser.parse(response.text)
+                if feed.entries:
+                    entry = feed.entries[0]
+                    post_id = entry.get("id") or entry.get("link") or entry.get("title")
+                    last_sent = get_last_sent_id(state_file)
 
-                print(f"Latest post ID for {source_id}: {post_id}")
-                print(f"Last sent ID for {source_id}: {last_sent}")
+                    print(f"Latest post ID for {source_id}: {post_id}")
+                    print(f"Last sent ID for {source_id}: {last_sent}")
 
-                if post_id == last_sent:
-                    print(f"No new posts for {source_id}. Skipping.")
-                else:
-                    raw_text = entry.get("summary", "") or entry.get("title", "")
-                    raw_text = re.sub(r"<br\s*/?>", "\n", raw_text, flags=re.IGNORECASE)
-                    raw_text = re.sub(r"</p>", "\n\n", raw_text, flags=re.IGNORECASE)
-                    raw_text = re.sub(r"<.*?>", "", raw_text)
-                    
-                    cleaned = clean_message(raw_text)
-
-                    if cleaned:
-                        res = send_to_channel(cleaned)
-                        if res and res.get("ok"):
-                            print(f"SUCCESS: Posted new item from {source_id} to channel!")
-                            save_last_sent_id(state_file, post_id)
-                        else:
-                            print(f"FAILED to post {source_id} to Telegram: {res}")
+                    if post_id == last_sent:
+                        print(f"No new posts for {source_id}. Skipping.")
                     else:
-                        print(f"Cleaned text for {source_id} is empty, skipping.")
+                        raw_text = entry.get("summary", "") or entry.get("title", "")
+                        raw_text = re.sub(r"<br\s*/?>", "\n", raw_text, flags=re.IGNORECASE)
+                        raw_text = re.sub(r"</p>", "\n\n", raw_text, flags=re.IGNORECASE)
+                        raw_text = re.sub(r"<.*?>", "", raw_text)
+                        
+                        cleaned = clean_message(raw_text)
+
+                        if cleaned:
+                            res = send_to_channel(cleaned)
+                            if res and res.get("ok"):
+                                print(f"SUCCESS: Posted new item from {source_id} to channel!")
+                                save_last_sent_id(state_file, post_id)
+                            else:
+                                print(f"FAILED to post {source_id} to Telegram: {res}")
+                        else:
+                            print(f"Cleaned text for {source_id} is empty, skipping.")
+                else:
+                    print(f"Feed for {source_id} is empty.")
             else:
-                print(f"Feed for {source_id} is empty.")
-        else:
-            print(f"Failed to fetch RSS for {source_id}, status code: {response.status_code}")
+                print(f"Failed to fetch RSS for {source_id}, status code: {response.status_code}")
+                
+        except requests.exceptions.RequestException as e:
+            # Server cavab vermədikdə bot çökməyəcək, sadəcə bu mesajı yazub davam edəcək
+            print(f"Network or Timeout error for {source_id}: {e}")
+            continue
             
     print("\nScript execution completed.")
