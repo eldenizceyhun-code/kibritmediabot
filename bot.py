@@ -10,8 +10,19 @@ print(f"Target Channel: {CHANNEL_USERNAME}")
 if not TOKEN:
     print("ERROR: TELEGRAM_BOT_TOKEN is missing!")
 
-RSS_URL = "https://tg.i-c-a.su/rss/shedevrplus"
-STATE_FILE = "last_id.txt"
+# İzləniləcək kanalların siyahısı
+SOURCES = [
+    {
+        "id": "shedevrplus",
+        "rss": "https://tg.i-c-a.su/rss/shedevrplus",
+        "state_file": "last_id_shedevrplus.txt"
+    },
+    {
+        "id": "papirus",
+        "rss": "https://tg.i-c-a.su/rss/P_apirus",
+        "state_file": "last_id_papirus.txt"
+    }
+]
 
 def clean_message(text):
     # Remove all types of links, domains, and telegram mentions
@@ -22,8 +33,8 @@ def clean_message(text):
     
     # Remove unwanted emojis, checkmarks, symbols, and channel signatures
     text = re.sub(r"[👉👇📢🔥💥⚡️✅✔️📌❗]", "", text)
-    text = re.sub(r"@(?:shedevrplus|şedevrplus|\w+)", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"(?:shedevrplus|şedevrplus).*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
+    text = re.sub(r"@(?:shedevrplus|şedevrplus|P_apirus|papirus|\w+)", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?:shedevrplus|şedevrplus|P_apirus|papirus).*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
     text = re.sub(r"Подписаться.*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
     text = re.sub(r"\.{2,}", ".", text)
     
@@ -33,14 +44,14 @@ def clean_message(text):
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text
 
-def get_last_sent_id():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
+def get_last_sent_id(state_file):
+    if os.path.exists(state_file):
+        with open(state_file, "r", encoding="utf-8") as f:
             return f.read().strip()
     return ""
 
-def save_last_sent_id(post_id):
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
+def save_last_sent_id(state_file, post_id):
+    with open(state_file, "w", encoding="utf-8") as f:
         f.write(str(post_id))
 
 def send_to_channel(text):
@@ -54,41 +65,48 @@ def send_to_channel(text):
     return response.json()
 
 if __name__ == "__main__":
-    print("Checking Shedevrplus RSS feed (without translation)...")
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    response = requests.get(RSS_URL, headers=headers, timeout=15)
     
-    if response.status_code == 200:
-        feed = feedparser.parse(response.text)
-        if feed.entries:
-            entry = feed.entries[0]
-            post_id = entry.get("id") or entry.get("link") or entry.get("title")
-            last_sent = get_last_sent_id()
+    for source in SOURCES:
+        source_id = source["id"]
+        rss_url = source["rss"]
+        state_file = source["state_file"]
+        
+        print(f"\nChecking {source_id} RSS feed...")
+        response = requests.get(rss_url, headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            feed = feedparser.parse(response.text)
+            if feed.entries:
+                entry = feed.entries[0]
+                post_id = entry.get("id") or entry.get("link") or entry.get("title")
+                last_sent = get_last_sent_id(state_file)
 
-            print(f"Latest post ID: {post_id}")
-            print(f"Last sent ID: {last_sent}")
+                print(f"Latest post ID for {source_id}: {post_id}")
+                print(f"Last sent ID for {source_id}: {last_sent}")
 
-            if post_id == last_sent:
-                print("No new posts. Skipping.")
-            else:
-                raw_text = entry.get("summary", "") or entry.get("title", "")
-                raw_text = re.sub(r"<br\s*/?>", "\n", raw_text, flags=re.IGNORECASE)
-                raw_text = re.sub(r"</p>", "\n\n", raw_text, flags=re.IGNORECASE)
-                raw_text = re.sub(r"<.*?>", "", raw_text)
-                
-                cleaned = clean_message(raw_text)
-
-                if cleaned:
-                    res = send_to_channel(cleaned)
-                    if res and res.get("ok"):
-                        print("SUCCESS: Posted to channel!")
-                        save_last_sent_id(post_id)
-                    else:
-                        print(f"FAILED to post to Telegram: {res}")
+                if post_id == last_sent:
+                    print(f"No new posts for {source_id}. Skipping.")
                 else:
-                    print("Cleaned text is empty, skipping.")
+                    raw_text = entry.get("summary", "") or entry.get("title", "")
+                    raw_text = re.sub(r"<br\s*/?>", "\n", raw_text, flags=re.IGNORECASE)
+                    raw_text = re.sub(r"</p>", "\n\n", raw_text, flags=re.IGNORECASE)
+                    raw_text = re.sub(r"<.*?>", "", raw_text)
+                    
+                    cleaned = clean_message(raw_text)
+
+                    if cleaned:
+                        res = send_to_channel(cleaned)
+                        if res and res.get("ok"):
+                            print(f"SUCCESS: Posted new item from {source_id} to channel!")
+                            save_last_sent_id(state_file, post_id)
+                        else:
+                            print(f"FAILED to post {source_id} to Telegram: {res}")
+                    else:
+                        print(f"Cleaned text for {source_id} is empty, skipping.")
+            else:
+                print(f"Feed for {source_id} is empty.")
         else:
-            print("Feed is empty.")
-    else:
-        print(f"Failed to fetch RSS, status code: {response.status_code}")
-    print("Script execution completed.")
+            print(f"Failed to fetch RSS for {source_id}, status code: {response.status_code}")
+            
+    print("\nScript execution completed.")
