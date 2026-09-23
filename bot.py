@@ -2,21 +2,15 @@ import os
 import re
 import feedparser
 import requests
-from groq import Groq
 
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@kibritmedia")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 print(f"Target Channel: {CHANNEL_USERNAME}")
 if not TOKEN:
     print("ERROR: TELEGRAM_BOT_TOKEN is missing!")
-if not GROQ_API_KEY:
-    print("ERROR: GROQ_API_KEY is missing!")
 
-client = Groq(api_key=GROQ_API_KEY)
-
-# İzləniləcək kanalların siyahısı (Shedevrplus, P_apirus, Topor Live)
+# İzləniləcək kanalların siyahısı (Şedevr və Papirus)
 SOURCES = [
     {
         "id": "shedevrplus",
@@ -27,11 +21,6 @@ SOURCES = [
         "id": "papirus",
         "rss": "https://tg.i-c-a.su/rss/P_apirus",
         "state_file": "last_id_papirus.txt"
-    },
-    {
-        "id": "topor_live",
-        "rss": "https://tg.i-c-a.su/rss/topor_live",
-        "state_file": "last_id_topor_live.txt"
     }
 ]
 
@@ -44,8 +33,8 @@ def clean_message(text):
     
     # Remove unwanted emojis, checkmarks, symbols, and channel signatures
     text = re.sub(r"[👉👇📢🔥💥⚡️✅✔️📌❗]", "", text)
-    text = re.sub(r"@(?:shedevrplus|şedevrplus|P_apirus|papirus|topor_live|topor|топор|\w+)", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"(?:shedevrplus|şedevrplus|P_apirus|papirus|topor_live|topor|топор).*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
+    text = re.sub(r"@(?:shedevrplus|şedevrplus|P_apirus|papirus|\w+)", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?:shedevrplus|şedevrplus|P_apirus|papirus).*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
     text = re.sub(r"Подписаться.*$", "", text, flags=re.IGNORECASE | re.MULTILINE)
     text = re.sub(r"\.{2,}", ".", text)
     
@@ -54,29 +43,6 @@ def clean_message(text):
     text = "\n".join(lines)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text
-
-def translate_with_groq(text):
-    if not text:
-        return text
-    try:
-        print("Translating and polishing via Groq (Llama 3)...")
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a professional news editor and translator. Translate the following news text from Russian into fluent, natural, and grammatically correct Azerbaijani. Preserve the original paragraph structure and formatting. Do not add any introductory or concluding remarks, explanations, or notes; output strictly the translated text."
-                },
-                {
-                    "role": "user",
-                    "content": text
-                }
-            ],
-            model="llama-3.1-8b-instant",
-        )
-        return chat_completion.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"Groq translation error: {e}")
-        return text
 
 def get_last_sent_id(state_file):
     if os.path.exists(state_file):
@@ -131,10 +97,9 @@ if __name__ == "__main__":
                         cleaned = clean_message(raw_text)
 
                         if cleaned:
-                            translated_text = translate_with_groq(cleaned)
-                            res = send_to_channel(translated_text)
+                            res = send_to_channel(cleaned)
                             if res and res.get("ok"):
-                                print(f"SUCCESS: Posted translated item from {source_id} to channel!")
+                                print(f"SUCCESS: Posted new item from {source_id} to channel!")
                                 save_last_sent_id(state_file, post_id)
                             else:
                                 print(f"FAILED to post {source_id} to Telegram: {res}")
@@ -150,3 +115,4 @@ if __name__ == "__main__":
             continue
             
     print("\nScript execution completed.")
+
